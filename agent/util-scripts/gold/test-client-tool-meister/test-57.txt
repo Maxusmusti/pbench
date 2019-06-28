@@ -223,7 +223,6 @@ INFO pbench-tool-meister main -- Remove pid file ... (tm-lite-remote_a.example.c
 +++ mock-run/tm/tm-lite-remote_b.example.com.err file contents
 --- mock-run/tm/tm-lite-remote_b.example.com.err file contents
 +++ mock-run/tm/tm-lite-remote_b.example.com.log file contents
-INFO pbench-tool-meister main -- params_key (tm-lite-remote_b.example.com): b'{"benchmark_run_dir": "/var/tmp/pbench-test-utils/pbench/mock-run", "channel": "tool-meister-chan", "controller": "localhost", "group": "lite", "hostname": "remote_b.example.com", "tools": {"mpstat": "--interval=42 --options=forty-two"}}'
 INFO pbench-tool-meister start -- mpstat: start_tool -- /usr/bin/screen -dmS pbench-tool-lite-mpstat /var/tmp/pbench-test-utils/opt/pbench-agent/tool-scripts/mpstat --start --dir=/var/tmp/tm.lite.NNNNN.nnnnnnnn/remote_b.example.com --interval=42 --options=forty-two
 INFO pbench-tool-meister stop -- mpstat: stop_tool -- /var/tmp/pbench-test-utils/opt/pbench-agent/tool-scripts/mpstat --stop --dir=/var/tmp/tm.lite.NNNNN.nnnnnnnn/remote_b.example.com --interval=42 --options=forty-two
 INFO pbench-tool-meister wait -- waiting for stop mpstat
