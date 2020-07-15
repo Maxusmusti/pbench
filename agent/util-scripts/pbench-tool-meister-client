@@ -74,6 +74,24 @@ def main(argv):
         )
         return 2
 
+    try:
+        tm_pids_raw = redis_server.get("tm-pids")
+        if tm_pids_raw is None:
+            logger.error('Tool Meister PIDs key, "tm-pids", does not exist.')
+            return 3
+        tm_pids_str = tm_pids_raw.decode("utf-8")
+        tm_pids = json.loads(tm_pids_str)
+    except Exception as ex:
+        logger.error('Unable to fetch and decode "tm-pids" key: %s', ex)
+        return 4
+    else:
+        expected_pids = 0
+        if "ds" in tm_pids:
+            expected_pids += 1
+        if "tm" in tm_pids:
+            expected_pids += len(tm_pids["tm"])
+        logger.debug("tm_pids = %r", tm_pids)
+
     # The published message contains three pieces of information:
     #   {
     #     "state": "< 'start' | 'stop' | 'send' | 'postprocess' | 'kill' >",
@@ -84,16 +102,24 @@ def main(argv):
     # is accessible by the tool-data-sink.
     msg = dict(state=operation, group=group, directory=directory)
     try:
-        ret = redis_server.publish(channel, json.dumps(msg))
+        num_present = redis_server.publish(channel, json.dumps(msg))
     except Exception:
         logger.exception("Failed to publish client message")
+        ret_val = 1
     else:
-        # FIXME: We should be checking that the total number of subscribers
-        # that received the message match the number of expected tool meisters
-        # running, plus the tool data sink.
-        logger.debug("publish() = %r", ret)
+        if num_present != expected_pids:
+            logger.error(
+                "Failed to publish to %d pids," " only encountered %d on the channel",
+                expected_pids,
+                num_present,
+            )
+            ret_val = 1
+        else:
+            ret_val = 0
 
-    return 0
+    # FIXME: Setup a client channel to wait for an ACK that the message was
+    # received.
+    return ret_val
 
 
 if __name__ == "__main__":

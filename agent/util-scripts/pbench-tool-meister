@@ -55,7 +55,6 @@ from pathlib import Path
 from pbench.server.utils import md5sum
 
 
-
 class Tool(object):
     """Encapsulates all the state needed to manage a tool running as a background
     process.
@@ -147,7 +146,12 @@ class Tool(object):
             self.tool_opts,
         ]
         self.logger.info("%s: stop_tool -- %s", self.name, " ".join(args))
-        self.stop_process = subprocess.Popen(args)
+        o_file = self.tool_dir / f"tm-{self.name}-stop.out"
+        e_file = self.tool_dir / f"tm-{self.name}-stop.err"
+        with o_file.open("w") as ofp, e_file.open("w") as efp:
+            self.stop_process = subprocess.Popen(
+                args, stdin=None, stdout=ofp, stderr=efp
+            )
 
     def wait(self):
         """Wait for any tool processes to terminate after a "stop" process has
@@ -175,7 +179,7 @@ class Tool(object):
             self.stop_process = None
             # ... then we wait for the start process to finish
             self.start_process.wait()
-            self.start_process = None #CHANGED
+            self.start_process = None
         elif self.post_process is not None:
             if self.start_process is not None:
                 self.logger.error(
@@ -204,7 +208,7 @@ class Tool(object):
             or self.post_process is not None
         ):
             self.logger.error(
-                "Tool(%s) has unexpected process already running", self.name
+                "Tool(%s) has an unexpected process already running", self.name
             )
             return
         # $pbench_bin/tool-scripts/$name --postprocess --dir=$dir "${tool_opts[@]}"
@@ -215,7 +219,12 @@ class Tool(object):
             self.tool_opts,
         ]
         self.logger.info("%s: post-process_tool -- %s", self.name, " ".join(args))
-        self.post_process = subprocess.Popen(args)
+        o_file = self.tool_dir / f"tm-{self.name}-postprocess.out"
+        e_file = self.tool_dir / f"tm-{self.name}-postprocess.err"
+        with o_file.open("w") as ofp, e_file.open("w") as efp:
+            self.post_process = subprocess.Popen(
+                args, stdin=None, stdout=ofp, stderr=efp
+            )
 
 
 class Terminate(Exception):
@@ -337,8 +346,11 @@ class ToolMeister(object):
         # tools.  This is a local temporary directory when the Tool Meister is
         # remote from the pbench controller.
         if self._controller != self._hostname:
-            self._tmp_dir = tempfile.mkdtemp(
-                dir=self._benchmark_run_dir, prefix=f"tm.{self._group}.{os.getpid()}."
+            self._tmp_dir = Path(
+                tempfile.mkdtemp(
+                    dir=self._benchmark_run_dir,
+                    prefix=f"tm.{self._group}.{os.getpid()}.",
+                )
             )
         else:
             self._tmp_dir = None
@@ -346,11 +358,13 @@ class ToolMeister(object):
         # object, we need to pull off the first message, which is an
         # acknowledgement that we have properly subscribed.
         resp = next(self._chan)
-        assert resp["type"] == "subscribe", "Unexpected 'type': {!r}".format(resp)
-        assert resp["pattern"] is None, "Unexpected 'pattern': {!r}".format(resp)
+assert resp["type"] == "subscribe", f"Unexpected 'type': {resp!r}"
+        assert resp["pattern"] is None, f"Unexpected 'pattern': {resp!r}"
         assert (
             resp["channel"].decode("utf-8") == self._channel
-        ), "Unexpected" " 'channel': {!r}".format(resp)
+        ), f"Unexpected 'channel': {resp!r}"
+        assert resp["data"] == 1, f"Unexpected 'data': {resp!r}"
+
         assert resp["data"] == 1, "Unexpected 'data': {!r}".format(resp)
         # First state we are expecting
         self.state = "init"
@@ -368,13 +382,13 @@ class ToolMeister(object):
                 key in self._valid_states
             ), f"INTERNAL ERROR: invalid state transition entry, '{key}'"
             assert self._state_trans[key]["next"] in self._valid_states, (
-                "INTERANL ERROR: invalid state transition next entry for"
+                "INTERNAL ERROR: invalie state transition next entry for"
                 f" '{key}', '{self._state_trans[key]['next']}'"
             )
         self._message_keys = frozenset(["directory", "group", "state"])
         # Tell the entity that started us who we are, indicating we're ready.
         started_msg = dict(kind="tm", hostname=self._hostname, pid=os.getpid())
-        self._rs.publish("{}-start".format(self._channel), json.dumps(started_msg))
+        self._rs.publish(f"{self._channel}-start", json.dumps(started_msg))
         # The current 'directory' into which the tools are collected; not set
         # until a 'start tools' is executed, cleared when a 'send tools'
         # completes.
@@ -386,7 +400,7 @@ class ToolMeister(object):
         self.logger.debug("%s: cleanup", self._hostname)
         self._pubsub.unsubscribe()
         self._pubsub.close()
-        if self._tmp_dir:
+        if self._tmp_dir is not None:
             shutil.rmtree(self._tmp_dir)
             self._tmp_dir = None
 
@@ -538,7 +552,7 @@ class ToolMeister(object):
         # action=`echo ${script_name#pbench-} | awk -F- '{print $1}'`
         # dir=${1}; shift (-d|--dir)
         if self._tmp_dir:
-            _dir = Path(self._tmp_dir)
+            _dir = self._tmp_dir
         else:
             try:
                 _dir = Path(data["directory"]).resolve(strict=True)
@@ -706,19 +720,26 @@ class ToolMeister(object):
                 self._directory,
             )
         else:
-            tar_file = Path(self._tmp_dir, f"{self._hostname}.tar.xz")
-            tar_dir = Path(self._tmp_dir, self._hostname)
+            tar_file = self._tmp_dir / f"{self._hostname}.tar.xz"
+            o_file = self._tmp_dir / f"{self._hostname}.tar.out"
+            e_file = self._tmp_dir / f"{self._hostname}.tar.err"
             try:
                 # Invoke tar directly for efficiency.
-                retcode = os.spawnl(
-                    os.P_WAIT, "/usr/bin/tar", "tar", "-Jcf", tar_file, tar_dir,
-                )
+                with o_file.open("w") as ofp, e_file.open("w") as efp:
+                    cp = subprocess.run(
+                        ["/usr/bin/tar", "-Jcf", tar_file, self._hostname],
+                        cwd=self._tmp_dir,
+                        stdin=None,
+                        stdout=ofp,
+                        stderr=efp,
+                    )
             except Exception:
-                self.logger.exception("Failed to create tools tar ball")
+                self.logger.exception("Failed to create tools tar ball '{}'", tar_file)
             else:
-                if retcode != 0:
+                if cp.returncode != 0:
                     self.logger.error(
-                        "Failed to create tools tar ball;" " return code: %d", retcode,
+                        "Failed to create tools tar ball; return code: %d",
+                        cp.returncode,
                     )
                 else:
                     try:
@@ -732,7 +753,7 @@ class ToolMeister(object):
                             self._group,
                             self._directory,
                         )
-                        headers = {"http-md5sum": tar_md5}
+                        headers = {"md5sum": tar_md5}
                         directory_bytes = data["directory"].encode("utf-8")
                         tool_data_ctx = hashlib.md5(directory_bytes).hexdigest()
                         url = f"http://{self._controller}:8080/tool-data/{tool_data_ctx}/{self._hostname}"
@@ -753,11 +774,11 @@ class ToolMeister(object):
                                     response.text,
                                 )
                                 try:
-                                    shutil.rmtree(tar_dir)
+                                    shutil.rmtree(self._tmp_dir / self._hostname)
                                 except Exception:
                                     self.logger.exception(
                                         "Failed to remove tool data hierarchy, '%s'",
-                                        tar_dir,
+                                        self._tmp_dir / self._hostname,
                                     )
             finally:
                 try:
@@ -804,8 +825,16 @@ def main(argv):
     PROG = os.path.basename(argv[0])
     pbench_bin = os.path.dirname(os.path.dirname(argv[0]))
 
+    try:
+        redis_host = argv[1]
+        redis_port = argv[2]
+        param_key = argv[3]
+    except IndexError as e:
+        print(f"Invalid arguments: {e}", file=sys.stderr)
+        return 1
+
     logger = logging.getLogger(PROG)
-    fh = logging.FileHandler("{}.log".format(PROG))
+    fh = logging.FileHandler(f"{param_key}.log")
     if os.environ.get("_PBENCH_UNIT_TESTS"):
         fmtstr = "%(levelname)s %(name)s %(funcName)s -- %(message)s"
     else:
@@ -815,17 +844,9 @@ def main(argv):
         )
     fhf = logging.Formatter(fmtstr)
     fh.setFormatter(fhf)
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(logging.INFO)
     logger.addHandler(fh)
-    logger.setLevel(logging.DEBUG)
-
-    try:
-        redis_host = argv[1]
-        redis_port = argv[2]
-        param_key = argv[3]
-    except IndexError as e:
-        logger.error("Invalid arguments: %s", e)
-        return 1
+    logger.setLevel(logging.INFO)
 
     try:
         redis_server = redis.Redis(host=redis_host, port=redis_port, db=0)
@@ -853,7 +874,7 @@ def main(argv):
         )
         return 4
 
-    pidfile_name = "{}.pid".format(PROG)
+    pidfile_name = f"{param_key}.pid"
     pfctx = pidfile.PIDFile(pidfile_name)
     with daemon.DaemonContext(
         stdout=sys.stdout,

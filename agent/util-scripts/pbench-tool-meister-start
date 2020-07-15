@@ -24,6 +24,9 @@ import time
 import errno
 import redis
 import logging
+from distutils.spawn import find_executable
+from pathlib import Path
+
 
 # Port number is "One Tool" in hex 0x17001
 # FIXME: move to common area
@@ -50,16 +53,17 @@ class ToolGroup(object):
     def __init__(self, group):
         self.group = group
         _pbench_run = os.environ["pbench_run"]
-        _tg_dir = os.path.join(_pbench_run, "{}-{}".format(self.tg_prefix, self.group))
-        if not os.path.isdir(_tg_dir):
+        self.tg_dir = Path(_pbench_run, f"{self.tg_prefix}-{self.group}").resolve(
+            strict=True
+        )
+        if not self.tg_dir.is_dir():
             raise Exception(
-                "bad tool group, {}: directory {} does not exist".format(group, _tg_dir)
+                f"bad tool group, {group}: directory {self.tg_dir} does not exist"
             )
-        self.tg_dir = os.path.realpath(_tg_dir)
 
         # __trigger__
         try:
-            with open(os.path.join(self.tg_dir, "__trigger__"), "r") as fp:
+            with (self.tg_dir / "__trigger__").open("r") as fp:
                 _trigger = fp.read()
         except OSError as ex:
             if ex.errno != errno.ENOENT:
@@ -84,16 +88,16 @@ class ToolGroup(object):
             if hdirent == "__trigger__":
                 # Ignore handled above
                 continue
-            if not os.path.isdir(os.path.join(self.tg_dir, hdirent)):
+            if not (self.tg_dir / hdirent).is_dir():
                 # Ignore wayward non-directory files
                 continue
             # We assume this directory is a hostname.
             host = hdirent
             if host not in self.hostnames:
                 self.hostnames[host] = {}
-            for tdirent in os.listdir(os.path.join(self.tg_dir, host)):
+            for tdirent in os.listdir(self.tg_dir / host):
                 if tdirent == "__label__":
-                    with open(os.path.join(self.tg_dir, host, tdirent)) as fp:
+                    with (self.tg_dir / host / tdirent).open("r") as fp:
                         self.labels[host] = fp.read()
                     continue
                 if tdirent.endswith("__noinstall__"):
@@ -101,7 +105,7 @@ class ToolGroup(object):
                     # in containers so this does not make sense going forward.
                     continue
                 tool = tdirent
-                with open(os.path.join(self.tg_dir, host, tool)) as fp:
+                with (self.tg_dir / host / tool).open("r") as fp:
                     tool_opts = fp.read()
                 if tool not in self.toolnames:
                     self.toolnames[tool] = {}
@@ -172,11 +176,17 @@ def wait_for_subs(redis_server, chan, expected_tms, logger):
 def main(argv):
     """Main program for the tool meister start.
     """
-    PROG = os.path.basename(argv[0])
+    _prog = Path(argv[0])
+    _prog_dir = _prog.parent
+    PROG = _prog.name
     logger = logging.getLogger(PROG)
-    logger.setLevel(logging.DEBUG)
+    if os.environ.get("_PBENCH_TOOL_MEISTER_START_LOG_LEVEL") == "debug":
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+    logger.setLevel(log_level)
     sh = logging.StreamHandler()
-    sh.setLevel(logging.DEBUG)
+    sh.setLevel(log_level)
     shf = logging.Formatter("%(message)s")
     sh.setFormatter(shf)
     logger.addHandler(sh)
@@ -201,7 +211,7 @@ def main(argv):
         logger.exception("failed to fetch parameters from the environment")
         return 1
     else:
-        tm_dir = os.path.join(benchmark_run_dir, "tm")
+        tm_dir = Path(benchmark_run_dir, "tm")
         try:
             os.mkdir(tm_dir)
             os.chdir(tm_dir)
@@ -229,9 +239,9 @@ def main(argv):
     #   - the Redis Server is requested to create the PID file
 
     # Create the Redis Server pbench-specific configuration file
-    redis_conf = os.path.join(tm_dir, "redis.conf")
+    redis_conf = tm_dir / "redis.conf"
     try:
-        with open(redis_conf, "w") as fp:
+        with redis_conf.open("w") as fp:
             fp.write(redis_conf_tmpl.format(**params))
     except Exception:
         logger.exception("failed to create redis server configuration")
@@ -239,7 +249,7 @@ def main(argv):
     # Start the Redis Server itself
     #   - FIXME: use podman to start a redis server container
     redis_srvr = "redis-server"
-    redis_srvr_path = os.path.join(os.path.sep, "usr", "bin", redis_srvr)
+    redis_srvr_path = Path(os.path.sep, "usr", "bin", redis_srvr)
     logger.debug("starting redis server")
     try:
         retcode = os.spawnl(os.P_WAIT, redis_srvr_path, redis_srvr, redis_conf)
@@ -298,14 +308,14 @@ def main(argv):
         # FIXME: fetch redis-server PID file and kill it.
         return 1
     data_sink = "pbench-tool-data-sink"
-    data_sink_path = os.path.join(os.path.dirname(argv[0]), data_sink)
+    data_sink_path = _prog_dir / data_sink
     logger.debug("starting tool data sink")
     try:
         retcode = os.spawnl(
             os.P_WAIT,
             data_sink_path,
             data_sink,
-            full_hostname,
+            "localhost",
             str(redis_port),
             tds_param_key,
         )
@@ -327,24 +337,30 @@ def main(argv):
     failures = 0
     successes = 0
     tool_meister_cmd = "pbench-tool-meister"
-    tool_meister_cmd_path = os.path.join(os.path.dirname(argv[0]), tool_meister_cmd)
-    ssh_path = "/usr/bin/ssh"
+    tool_meister_cmd_path = _prog_dir / tool_meister_cmd
+    ssh_path = find_executable("ssh")
     ssh_cmd = "ssh"
     args = [
         ssh_cmd,
         "<host replace me>",
         tool_meister_cmd,
         full_hostname,
-        redis_port,
+        str(redis_port),
         "<tm param key>",
     ]
     ssh_pids = []
     for host in tool_group.hostnames.keys():
         tools = tool_group.get_tools(host)
+        if host == full_hostname:
+            _controller = full_hostname
+        else:
+            _controller = (
+                "localhost" if os.environ.get("_PBENCH_UNIT_TESTS") else full_hostname
+            )
         tm = dict(
             benchmark_run_dir=benchmark_run_dir,
             channel=channel,
-            controller=full_hostname,
+            controller=_controller,
             group=group,
             hostname=host,
             tools=tools,
@@ -386,7 +402,9 @@ def main(argv):
             continue
         args[1] = host
         args[5] = tm_param_key
-        logger.debug("starting remote tool meister, '%r' '%r'", ssh_path, args)
+        logger.debug(
+            "starting remote tool meister, ssh_path=%r args=%r", ssh_path, args
+        )
         # FIXME: here we should consider using Ansible instead
         try:
             pid = os.spawnv(os.P_NOWAIT, ssh_path, args)
@@ -401,7 +419,7 @@ def main(argv):
     # Wait for all the SSH pids to complete.
     for pid, host in ssh_pids:
         try:
-            exit_pid, exit_status = os.waitpid(pid, 0)
+            exit_pid, _exit_status = os.waitpid(pid, 0)
         except OSError:
             logger.exception(
                 "failed to create a tool meister instance for" " host %s", host
@@ -409,12 +427,14 @@ def main(argv):
             failures += 1
             successes -= 1
         else:
+            exit_status = os.WEXITSTATUS(_exit_status)
             if pid != exit_pid:
                 logger.error(
-                    "INTERNAL ERROR: os.waitpid(%d, 0) returned (%d, %d)",
+                    "INTERNAL ERROR: os.waitpid(%d, 0) returned (%d, %d [%0X])",
                     pid,
                     exit_pid,
-                    os.WEXITSTATUS(exit_status),
+                    exit_status,
+                    _exit_status,
                 )
             else:
                 if exit_status != 0:
@@ -422,10 +442,11 @@ def main(argv):
                     successes -= 1
                     logger.error(
                         "failed to start tool-meister on remote host '%s'"
-                        " (pid %d), exit status: %d",
+                        " (pid %d), exit status: %d [%0X]",
                         host,
                         pid,
-                        os.WEXITSTATUS(exit_status),
+                        exit_status,
+                        _exit_status,
                     )
 
     # If any successes, then we need to wait for them to show up as

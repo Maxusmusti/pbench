@@ -28,7 +28,7 @@ function register {
     if [[ -z "${1}" ]]; then
         local remote_arg=""
     else
-        local remote_arg="--remote ${1}"
+        local remote_arg=" --remote ${1}"
     fi
     pbench-register-tool --group "${group}" --name mpstat${remote_arg}
     status=${?}
@@ -62,7 +62,6 @@ if [[ ${status} -ne 0 ]]; then
     printf -- "\"pbench-tool-meister-start ${group}\" failed to execute successfully (exit code: ${status})\n"
     exit 1
 fi
-
 
 sample="sample42"
 iteration="0-iter-zero"

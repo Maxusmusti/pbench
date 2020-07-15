@@ -103,7 +103,7 @@ def main(argv):
     else:
         if num_present != expected_pids:
             logger.error(
-                "Failed to terminate %d pids, only encountered %d on" " the channel",
+                "Failed to terminate %d pids, only encountered %d on the channel",
                 expected_pids,
                 num_present,
             )
