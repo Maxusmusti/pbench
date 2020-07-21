@@ -909,30 +909,6 @@ class ToolMeister(object):
         )
         return failures
 
-    def end_tools(self, data):
-        failures = 0
-        for name in self._tools.keys():
-            if name in self.prom_tools:
-                try:
-                    tool = self._perma_tools[name]
-                except KeyError:
-                    self.logger.error(
-                        "INTERNAL ERROR - tool %s not found in list of persistent" " tools",
-                        name,
-                    )
-                    failures += 1
-                    continue
-                try:
-                    tool.stop()
-                except Exception:
-                    self.logger.exception(
-                        "Failed to stop persistent tool %s running in background", name
-                    )
-                    failures += 1
-        #failures += self._wait_for_tools()
-        return failures
-
-
 
 def main(argv):
     """Main program for the tool meister.
