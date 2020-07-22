@@ -410,7 +410,7 @@ class ToolMeister(object):
         logger.debug("next done")
         # First state we are expecting
         self.state = "init"
-        #self.state = "start"
+        self.state_alternate = None
         self._state_trans = {
             "init": {"next": "start", "action": self.begin_tools},
             "start": {"next": "stop", "action": self.start_tools},
