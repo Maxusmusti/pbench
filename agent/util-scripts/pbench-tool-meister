@@ -75,7 +75,7 @@ class PermaTool():
 
     def start(self):
         if self.install_path == None:
-            selflogger.error("NO INSTALL PATH PROPERLY GIVEN AS PERMATOOL OPTION, see /opt/pbench-agent/nodexporter --help")
+            self.logger.error("NO INSTALL PATH PROPERLY GIVEN AS PERMATOOL OPTION, see /opt/pbench-agent/nodexporter --help")
             return
 
         if self.name == "node-exporter":
@@ -86,7 +86,7 @@ class PermaTool():
         elif self.name == "dcgm":
             os.environ["PYTHONPATH"] = self.install_path + "/bindings:" + self.install_path + "/bindings/common"
             args = [f"python2 {self.install_path}/samples/scripts/dcgm_prometheus.py"]
-            self.process = subprocess.run(args, shell=True)
+            self.process = subprocess.Popen(args, shell=True)
         else:
             logger.error("INVALID PERMA TOOL NAME")
 
