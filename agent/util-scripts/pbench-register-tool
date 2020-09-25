@@ -116,8 +116,8 @@ function usage() {
 	printf -- "\tdenoted by a leading hash, or pound (\"#\"), character.\n"
 	printf -- "\nAvailable tools:\n"
 	local tool=""
-        awk '/null/ {print $1}' ${pbench_bin}/tool-scripts/meta.json | sed 's/"/\t/' | sed 's/"://'
-        awk '/collector/ {print $1}' ${pbench_bin}/tool-scripts/meta.json | sed 's/"/\t/' | sed 's/":/ (persistent)/'
+        cat ${pbench_bin}/tool-scripts/meta.json | python3 -c 'from __future__ import print_function; import sys, json; [print("\t" + tool) for tool in json.load(sys.stdin)["transient"].keys()]'
+	cat ${pbench_bin}/tool-scripts/meta.json | python3 -c 'from __future__ import print_function; import sys, json; [print("\t" + tool + " (persistent)") for tool in json.load(sys.stdin)["persistent"].keys()]'
 	#                     1         2         3         4         5         6         7         8
 	# (no tab)   12345678901234567890123456789012345678901234567890123456789012345678901234567890
 	printf -- "\nFor a list of tool specific options, run:\n"
