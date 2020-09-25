@@ -19,7 +19,6 @@ Available tools:
 	blktrace
 	bpftrace
 	cpuacct
-	dcgm
 	disk
 	dm-cache
 	docker
@@ -34,7 +33,6 @@ Available tools:
 	kvmtrace
 	lockstat
 	mpstat
-	node-exporter
 	numastat
 	oc
 	openvswitch
@@ -57,8 +55,8 @@ Available tools:
 	user-tool
 	virsh-migrate
 	vmstat
-	node-exporter (persistent)
-	dcgm (persistent)
+	node-exporter
+	dcgm
 
 For a list of tool specific options, run:
 	/var/tmp/pbench-test-utils/opt/pbench-agent/tool-scripts/<tool-name> --help

@@ -16,7 +16,6 @@ import hashlib
 import json
 import logging
 import os
-import shutil
 import socket
 import subprocess
 import sys
@@ -124,7 +123,8 @@ class BaseCollector:
         self.tool_group = tool_group
         self.host_tools_dict = host_tools_dict
         self.logger = logger
-        self.tool_metadata = tool_metadata
+        self.tool_metadata = tool_metadata        
+        self.tool_group_dir = self.benchmark_run_dir / f"tools-{self.tool_group}"
         self.abort_launch = True
 
     def launch(self):
@@ -142,7 +142,7 @@ class BaseCollector:
 class PromCollector(BaseCollector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.volume = self.benchmark_run_dir / f"tools-{self.tool_group}" / "prometheus"
+        self.volume = self.tool_group_dir / "prometheus"
 
     def launch(self):
 
@@ -229,7 +229,7 @@ class PromCollector(BaseCollector):
             "-zcvf",
             f"{self.volume}/prometheus_data.tar.gz",
             "-C",
-            f"{self.volume}/../",
+            f"{self.tool_group_dir}/",
             "prometheus",
         ]
         data_store = subprocess.Popen(args)
