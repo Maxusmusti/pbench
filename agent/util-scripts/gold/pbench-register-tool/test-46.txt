@@ -19,6 +19,7 @@ Available tools:
 	blktrace
 	bpftrace
 	cpuacct
+	dcgm
 	disk
 	dm-cache
 	docker
@@ -33,6 +34,7 @@ Available tools:
 	kvmtrace
 	lockstat
 	mpstat
+	node-exporter
 	numastat
 	oc
 	openvswitch

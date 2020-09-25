@@ -1,5 +1,5 @@
 # copy to: /etc/systemd/system/pbench-server.service
-# and run: systemctl reload-daemon
+# and run: systemctl daemon-reload
 # enable: systemctl enable pbench-server
 # start: systemctl start pbench-server
 
@@ -10,7 +10,7 @@ After=network.target httpd.service
 
 [Service]
 Type = simple
-ExecStart = /usr/bin/pbench-server
+ExecStart = /opt/pbench-server/bin/pbench-server
 ExecStop = /usr/bin/pkill pbench-server
 Restart = always
 StartLimitInterval = 60
@@ -19,7 +19,8 @@ StartLimitBurst = 10
 # set appropriately for your environment
 # or use systemctl edit pbench-server to put overrides
 # in another location
-Environment="PYTHONPATH=$PYTHONPATH:/opt/pbench-server/"
+Environment="PYTHONPATH=$PYTHONPATH:/opt/pbench-server/lib"
+Environment="_PBENCH_SERVER_CONFIG=/opt/pbench-server/lib/config/pbench-server.cfg"
 
 [Install]
 WantedBy = multi-user.target
