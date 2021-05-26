@@ -9,10 +9,9 @@ DISTRO=$distrovar
 read -p "Specify image tag to test: " tagvar
 TAG=$tagvar
 
-read -p "Specify redis host: " redishost
-read -p "Specify redis port: " redisport
-export REDIS_HOST=$redishost
-export REDIS_PORT=$redisport
+read -p "Specify redis host: " REDIS_HOST
+read -p "Specify redis port: " REDIS_PORT
+export REDIS_HOST REDIS_PORT
 export PBENCH_REDIS_SERVER="${REDIS_HOST}:${REDIS_PORT}"
 
 function wait_keypress {
@@ -38,7 +37,7 @@ wait_keypress 120
 # the Tool Data Sink, and how the "sysinfo", "init", and "end" commands
 # operate with respect to data storage.
 
-export pbench_run=${HOME}/test-run-dir
+export pbench_run=/var/tmp/test-run-dir
 rm -rf ${pbench_run}
 mkdir ${pbench_run}
 printf -- "${pbench_run}\n" > ${pbench_run}/.path
@@ -53,13 +52,20 @@ wait_keypress 120
 
 # Register tools
 
-printf -- "\nNow, let's pick a host to collect data from, as well as which tools we wish to register for that host.\n\n"
+printf -- "\nNow, let's pick hosts to collect data from, as well as which tools we wish to register for that host.\n\n"
 
 wait_keypress 120
 
-read -p "Hostname: " hostvar
-echo $hostvar > ${pbench_run}/remotes.lis
-
+anotherhost=y
+while [ $anotherhost == "y" ]
+do
+    read -p "Hostname: " hostvar
+    echo $hostvar >> ${pbench_run}/remotes.lis
+    read -p "Another host? (y/n)" anotherhost
+done
+printf -- "\nDone selecting hosts:\n"
+cat ${pbench_run}/remotes.lis
+printf -- "\nNow to select tools.\n\n"
 
 # Register the specified tools, will be recorded in
 # ${pbench_run}/tools-v1-default
@@ -126,7 +132,7 @@ set -x
 _PBENCH_TOOL_MEISTER_START_LOG_LEVEL=debug pbench-tool-meister-start --sysinfo=default ${group} 2>&1 | less -S
 set +x
 
-printf -- "\n\nThe operation of pbench-tool-meister-start creates the keys containing the operational data for the Tool Data Sink and the Tool Meisters, then issued the first 'sysinfo' collection, as requested, and sent the 'init' persistent tools command.\n\nAt this point any registered persistent tools are up and running. Next is the handling of transient tool start/stop.\n\n"
+printf -- "\n\nThe operation of pbench-tool-meister-start created the keys containing the operational data for the Tool Data Sink and the Tool Meisters, then issued the first 'sysinfo' collection, as requested, and sent the 'init' persistent tools command.\n\nAt this point any registered persistent tools are up and running. Next is the handling of transient tool start/stop.\n\n"
 wait_keypress 120
 
 # Option to start grafana, where it is listening on port 3000.
@@ -184,5 +190,5 @@ set +x
 printf -- "\n\nAt this point the Tool Data Sink has stopped, along with the Tool Meisters. The Redis server is still running, since the pbench-agent CLI commands did not start it.  Next we dump the final directory hierarchy of collected data to complete the test.\n\n"
 wait_keypress 120
 
-# Dump our local environment, note we are not running as root.
+# Dump our local environment
 find ${pbench_run} -ls | less -S
