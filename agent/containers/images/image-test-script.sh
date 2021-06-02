@@ -101,12 +101,12 @@ set -x
 podman run --name pbench-agent-tool-data-sink --network host --volume ${pbench_run}:/var/lib/pbench-agent:Z --ulimit nofile=65536:65536 --rm -d -e REDIS_HOST=${REDIS_HOST} -e REDIS_PORT=${REDIS_PORT} -e PARAM_KEY=tds-default -e _PBENCH_TOOL_DATA_SINK_LOG_LEVEL=debug quay.io/pbench/pbench-agent-tool-data-sink-${DISTRO}:${TAG}
 set +x
 
-printf -- "\n\nOptional: Now let's look at the 'podman logs' output from these containers;\n\t You will notice we did not start a Redis server yet,\n\tthey'll just be waiting for it to show up.\n\n"
+printf -- "\n\nOptional: Now let's look at the 'podman logs' output from these containers;\n\t You will notice if we did not start a Redis server yet,\n\tthey'll just be waiting for it to show up.\n\n"
 
 wait_keypress 120
 
 
-printf -- "\n\nPlease start the Redis server on ${REDIS_HOST}:${REDIS_PORT}\n\t$ podman run --name demo-tm-redis --network host --rm -d redis\n\n\tNote TDS and TMs notice Redis server,\n\tbut now wait for their 'PARAM_KEY' to show up.\n\n"
+printf -- "\n\nPlease start the Redis server on ${REDIS_HOST}:${REDIS_PORT} if not currently up\n\t$ podman run --name demo-tm-redis -p ${REDIS_PORT}:6379 --rm -d redis\n\n\tNote TDS and TMs notice Redis server,\n\tbut now wait for their 'PARAM_KEY' to show up.\n\n"
 
 wait_keypress 120
 
@@ -129,7 +129,7 @@ wait_keypress 120
 
 # Start the Tool Meisters, collecting system information, and start any persistent tools.
 set -x
-_PBENCH_TOOL_MEISTER_START_LOG_LEVEL=debug pbench-tool-meister-start --sysinfo=default ${group} 2>&1 | less -S
+_PBENCH_TOOL_MEISTER_START_LOG_LEVEL=debug pbench-tool-meister-start --orchestrate=existing --redis-server=${REDIS_HOST}:${REDIS_PORT} --tool-data-sink=${REDIS_HOST} --sysinfo=default ${group} 2>&1 | less -S
 set +x
 
 printf -- "\n\nThe operation of pbench-tool-meister-start created the keys containing the operational data for the Tool Data Sink and the Tool Meisters, then issued the first 'sysinfo' collection, as requested, and sent the 'init' persistent tools command.\n\nAt this point any registered persistent tools are up and running. Next is the handling of transient tool start/stop.\n\n"
