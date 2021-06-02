@@ -73,11 +73,17 @@ printf -- "\nNow to select tools.\n\n"
 anothertool=y
 while [ $anothertool == "y" ]
 do
-    read -p "Tool name: " tool
-    printf -- "\npbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis\n"
-    pbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis
-    sleep 1
-    read -p "Another tool? (y/n)" anothertool
+    read -p "Tool name (type 'help' to see options): " tool
+    if [ $tool == "help" ]
+    then
+        printf -- "\nAvailable tools:\n"
+        python3 -c "import sys, json; meta = json.load(open(sys.argv[1])); print('  Transient:', *[f'\t{tool}' for tool in meta['transient'].keys()], '  Persistent:', *[f'\t{tool}' for tool in meta['persistent'].keys()], sep='\n')" /opt/pbench-agent/tool-scripts/meta.json
+    else
+        printf -- "\npbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis\n"
+        pbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis
+        sleep 1
+        read -p "Another tool? (y/n)" anothertool
+    fi
 done
 printf -- "\nDone registering tools.\n\n"
 ls -lR ${pbench_run}/tools-v1-default
