@@ -199,3 +199,21 @@ wait_keypress 120
 
 # Dump our local environment
 find ${pbench_run} -ls | less -S
+
+wait_keypress 120
+
+read -p "Would you like the live-metric-visualizer to be terminated if started locally? (y/n): " term_vis
+if [ $term_vis == "y" ]
+then
+    printf -- "Running: podman kill pbench-viz\n"
+    podman kill pbench-viz
+fi
+
+read -p "\nWould you like the redis container to be terminated if started locally? (y/n): " term_redis
+if [ $term_redis == "y" ]
+then
+    printf -- "Running: podman kill demo-tm-redis\n"
+    podman kill demo-tm-redis
+fi
+
+printf -- "\nCongratulations, you've completed the full benchmarking process!\n"
