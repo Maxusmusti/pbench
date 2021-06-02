@@ -2,6 +2,7 @@
 
 # A demonstration of how to use pbench-tool-meister-start with an existing
 # Redis server, and one or more remote
+export CONTROLLER=$(hostname -f)
 
 read -p "Specify distribution to test: " distrovar
 DISTRO=$distrovar
@@ -129,7 +130,7 @@ wait_keypress 120
 
 # Start the Tool Meisters, collecting system information, and start any persistent tools.
 set -x
-_PBENCH_TOOL_MEISTER_START_LOG_LEVEL=debug pbench-tool-meister-start --orchestrate=existing --redis-server=${REDIS_HOST}:${REDIS_PORT} --tool-data-sink=${REDIS_HOST} --sysinfo=default ${group} 2>&1 | less -S
+_PBENCH_TOOL_MEISTER_START_LOG_LEVEL=debug pbench-tool-meister-start --orchestrate=existing --redis-server=${REDIS_HOST}:${REDIS_PORT} --tool-data-sink=${CONTROLLER} --sysinfo=default ${group} 2>&1 | less -S
 set +x
 
 printf -- "\n\nThe operation of pbench-tool-meister-start created the keys containing the operational data for the Tool Data Sink and the Tool Meisters, then issued the first 'sysinfo' collection, as requested, and sent the 'init' persistent tools command.\n\nAt this point any registered persistent tools are up and running. Next is the handling of transient tool start/stop.\n\n"
