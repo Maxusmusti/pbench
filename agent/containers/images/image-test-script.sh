@@ -151,6 +151,8 @@ wait_keypress 120
 
 # TBD start/stop/send tools
 
+printf -- "\n\nNow we will start and stop two iterations of transient tool data collection.\n"
+
 sample="sample42"
 iterations="0-iter-zero 1-iter-one"
 
