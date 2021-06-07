@@ -36,7 +36,7 @@ do
     then
         REDIS_PORT=17001
     fi
-    if [ "$REDIS_PORT" -eq "$REDIS_PORT" 2> /dev/null]
+    if [ "$REDIS_PORT" -eq "$REDIS_PORT" 2> /dev/null ]
     then
         badport=false
     else
@@ -180,6 +180,9 @@ printf -- "\n\nTypically pbench-tool-meister-start is expecting a '\${benchmark_
 
 wait_keypress 120
 
+printf -- "\n\nNow we will begin with data collection, but before doing so, feel free to run this on any tool-meister hosts:\n\n\t$ podman run docker.io/alexeiled/stress-ng --cpu 4 --io 2 --timeout 300s --metrics-brief\n\nThis will serve as a sample workload to demonstrate meaningful data collection.\nIt runs for 300s by default, but feel free to alter that value (or ctrl-c for early graceful exit).\n\n"
+
+wait_keypress 120
 
 # Start the Tool Meisters, collecting system information, and start any persistent tools.
 set -x
