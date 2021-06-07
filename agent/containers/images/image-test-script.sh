@@ -10,8 +10,39 @@ DISTRO=$distrovar
 read -p "Specify image tag to test: " tagvar
 TAG=$tagvar
 
-read -p "Specify redis host: " REDIS_HOST
-read -p "Specify redis port: " REDIS_PORT
+badhost=true
+while [ "$badhost" == true ]
+do
+    read -p "Specify redis host (or press 'ENTER' for default '$CONTROLLER'): " REDIS_HOST
+    if [ -z "$REDIS_HOST" ]
+    then
+        REDIS_HOST=$CONTROLLER
+    fi
+    ping_first=$(ping -c 1 -W 1 ${REDIS_HOST} 2>&1 | grep 'Name or service not known')
+    ping_second=$(ping -c 1 -W 1 ${REDIS_HOST} 2>&1 | grep '100% packet loss')
+    if [ -n "$ping_first" ] || [ -n "$ping_second" ]
+    then
+        printf -- "Host specified either does not exist or is unreachable, please try again:\n"
+    else
+        badhost=false
+    fi
+done
+
+badport=true
+while [ "$badport" == true ]
+do
+    read -p "Specify redis port (or press enter for default port '17001'): " REDIS_PORT
+    if [ -z "$REDIS_PORT" ]
+    then
+        REDIS_PORT=17001
+    fi
+    if [ "$REDIS_PORT" -eq "$REDIS_PORT" 2> /dev/null]
+    then
+        badport=false
+    else
+        printf -- "Value inputted was not numeric, please retry\n"
+    fi
+done
 export REDIS_HOST REDIS_PORT
 export PBENCH_REDIS_SERVER="${REDIS_HOST}:${REDIS_PORT}"
 
@@ -60,9 +91,20 @@ wait_keypress 120
 anotherhost=y
 while [ $anotherhost == "y" ]
 do
-    read -p "Hostname: " hostvar
-    echo $hostvar >> ${pbench_run}/remotes.lis
-    read -p "Another host? (y/n)" anotherhost
+    read -p "Hostname (or press 'ENTER' for default '$CONTROLLER'): " hostvar
+    if [ -z "$hostvar" ]
+    then
+        hostvar=$CONTROLLER
+    fi
+    ping_first=$(ping -c 1 -W 1 ${hostvar} 2>&1 | grep 'Name or service not known')
+    ping_second=$(ping -c 1 -W 1 ${hostvar} 2>&1 | grep '100% packet loss')
+    if [ -n "$ping_first" ] || [ -n "$ping_second" ]
+    then
+        printf -- "Host specified either does not exist or is unreachable, please try again:\n"
+    else
+        echo $hostvar >> ${pbench_run}/remotes.lis
+        read -p "Another host? (y/n)" anotherhost
+    fi
 done
 printf -- "\nDone selecting hosts:\n"
 cat ${pbench_run}/remotes.lis
@@ -74,15 +116,20 @@ anothertool=y
 while [ $anothertool == "y" ]
 do
     read -p "Tool name (type 'help' to see options): " tool
-    if [ $tool == "help" ]
+    if [ -z "$tool" ]
     then
-        printf -- "\nAvailable tools:\n"
-        python3 -c "import sys, json; meta = json.load(open(sys.argv[1])); print('  Transient:', *[f'\t{tool}' for tool in meta['transient'].keys()], '  Persistent:', *[f'\t{tool}' for tool in meta['persistent'].keys()], sep='\n')" /opt/pbench-agent/tool-scripts/meta.json
+        printf -- "Tool name empty. Please write a tool name.\n"
     else
-        printf -- "\npbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis\n"
-        pbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis
-        sleep 1
-        read -p "Another tool? (y/n)" anothertool
+        if [ $tool == "help" ]
+        then
+            printf -- "\nAvailable tools:\n"
+            python3 -c "import sys, json; meta = json.load(open(sys.argv[1])); print('  Transient:', *[f'\t{tool}' for tool in meta['transient'].keys()], '  Persistent:', *[f'\t{tool}' for tool in meta['persistent'].keys()], sep='\n')" /opt/pbench-agent/tool-scripts/meta.json
+        else
+            printf -- "\npbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis\n"
+            pbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis
+            sleep 1
+            read -p "Another tool? (y/n)" anothertool
+        fi
     fi
 done
 printf -- "\nDone registering tools.\n\n"
