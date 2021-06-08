@@ -7,14 +7,20 @@ export CONTROLLER=$(hostname -f)
 verified=""
 while [ -z "$verified" ]
 do
-    read -p "Specify distribution to test: " distrovar
-    DISTRO=$distrovar
+    read -p "Specify distribution to test (or press 'ENTER' for default 'centos-8'): " DISTRO
+    if [ -z "$DISTRO" ]
+    then
+        DISTRO="centos-8"
+    fi
 
-    read -p "Specify image tag to test: " tagvar
-    TAG=$tagvar
+    read -p "Specify image tag to test (or press 'ENTER' for default 'a933ae45e'): " TAG
+    if [ -z "$TAG" ]
+    then
+        TAG="a933ae45e"
+    fi
 
     printf -- "Pulling tool-data-sink image to test...\n"
-    verified=$(podman pull quay.io/pbench/pbench-agent-tool-data-sink-$distrovar:$tagvar 2> /dev/null)
+    verified=$(podman pull quay.io/pbench/pbench-agent-tool-data-sink-$DISTRO:$TAG 2> /dev/null)
 
     if [ -z "$verified" ]
     then
