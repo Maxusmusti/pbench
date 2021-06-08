@@ -4,11 +4,25 @@
 # Redis server, and one or more remote
 export CONTROLLER=$(hostname -f)
 
-read -p "Specify distribution to test: " distrovar
-DISTRO=$distrovar
+verified=""
+while [ -z "$verified" ]
+do
+    read -p "Specify distribution to test: " distrovar
+    DISTRO=$distrovar
 
-read -p "Specify image tag to test: " tagvar
-TAG=$tagvar
+    read -p "Specify image tag to test: " tagvar
+    TAG=$tagvar
+
+    printf -- "Pulling tool-data-sink image to test...\n"
+    verified=$(podman pull quay.io/pbench/pbench-agent-tool-data-sink-$distrovar:$tagvar 2> /dev/null)
+
+    if [ -z "$verified" ]
+    then
+        printf -- "Distro/tag combination could not be found, please try again.\n\n"
+    else
+        printf -- "Complete!\n\n"
+    fi
+done
 
 badhost=true
 while [ "$badhost" == true ]
