@@ -4,65 +4,49 @@
 # Redis server, and one or more remote
 export CONTROLLER=$(hostname -f)
 
-verified=""
-while [ -z "$verified" ]
-do
-    read -p "Specify distribution to test (or press 'ENTER' for default 'centos-8'): " DISTRO
-    if [ -z "$DISTRO" ]
-    then
-        DISTRO="centos-8"
-    fi
+DISTRO_DEFAULT="centos-8"
+TAG_DEFAULT="a933ae45e"
+REDIS_HOST_DEFAULT=$CONTROLLER
+REDIS_PORT_DEFAULT=17001
 
-    read -p "Specify image tag to test (or press 'ENTER' for default 'a933ae45e'): " TAG
-    if [ -z "$TAG" ]
-    then
-        TAG="a933ae45e"
-    fi
+while :; do
+    read -p "Specify distribution to test (or press 'ENTER' for default ${DISTRO_DEFAULT}): "
+    DISTRO=${REPLY:-${DISTRO_DEFAULT}}
+    read -p "Specify image tag to test (or press 'ENTER' for default ${TAG_DEFAULT}): "
+    TAG=${REPLY:-${TAG_DEFAULT}}
 
     printf -- "Pulling tool-data-sink image to test...\n"
-    verified=$(podman pull quay.io/pbench/pbench-agent-tool-data-sink-$DISTRO:$TAG 2> /dev/null)
-
-    if [ -z "$verified" ]
+    if podman pull quay.io/pbench/pbench-agent-tool-data-sink-$DISTRO:$TAG
     then
+        printf -- "Complete!\n\n" break
+        break
+    else
         printf -- "Distro/tag combination could not be found, please try again.\n\n"
-    else
-        printf -- "Complete!\n\n"
     fi
 done
 
-badhost=true
-while [ "$badhost" == true ]
-do
-    read -p "Specify redis host (or press 'ENTER' for default '$CONTROLLER'): " REDIS_HOST
-    if [ -z "$REDIS_HOST" ]
+while :; do
+    read -p "Specify redis host (or press 'ENTER' for default '$REDIS_HOST_DEFAULT'): "
+    REDIS_HOST=${REPLY:-${REDIS_HOST_DEFAULT}}
+    if ping -c 1 -W 1 ${REDIS_HOST} 2>&1 1>/dev/null
     then
-        REDIS_HOST=$CONTROLLER
-    fi
-    ping_first=$(ping -c 1 -W 1 ${REDIS_HOST} 2>&1 | grep 'Name or service not known')
-    ping_second=$(ping -c 1 -W 1 ${REDIS_HOST} 2>&1 | grep '100% packet loss')
-    if [ -n "$ping_first" ] || [ -n "$ping_second" ]
-    then
+        break
+    else
         printf -- "Host specified either does not exist or is unreachable, please try again:\n"
-    else
-        badhost=false
     fi
 done
 
-badport=true
-while [ "$badport" == true ]
-do
-    read -p "Specify redis port (or press enter for default port '17001'): " REDIS_PORT
-    if [ -z "$REDIS_PORT" ]
+while :; do
+    read -p "Specify Redis port (or press enter for default port '${REDIS_PORT_DEFAULT}'): "
+    let REDIS_PORT=${REPLY:-${REDIS_PORT_DEFAULT}}
+    if [[ $REDIS_PORT -ne 0 ]]
     then
-        REDIS_PORT=17001
-    fi
-    if [ "$REDIS_PORT" -eq "$REDIS_PORT" 2> /dev/null ]
-    then
-        badport=false
+        break
     else
-        printf -- "Value inputted was not numeric, please retry\n"
+        printf -- "Port must be a non-zero numeric value; please retry\n"
     fi
 done
+
 export REDIS_HOST REDIS_PORT
 export PBENCH_REDIS_SERVER="${REDIS_HOST}:${REDIS_PORT}"
 
@@ -108,22 +92,19 @@ printf -- "\nNow, let's pick hosts to collect data from, as well as which tools 
 
 wait_keypress 120
 
-anotherhost=y
-while [ $anotherhost == "y" ]
-do
-    read -p "Hostname (or press 'ENTER' for default '$CONTROLLER'): " hostvar
-    if [ -z "$hostvar" ]
+while :; do
+    read -p "Hostname (or press 'ENTER' for default '$CONTROLLER'): "
+    hostvar=${REPLY:-${CONTROLLER}}
+    if ping -c 1 -W 1 ${hostvar} 2>&1 1>/dev/null
     then
-        hostvar=$CONTROLLER
-    fi
-    ping_first=$(ping -c 1 -W 1 ${hostvar} 2>&1 | grep 'Name or service not known')
-    ping_second=$(ping -c 1 -W 1 ${hostvar} 2>&1 | grep '100% packet loss')
-    if [ -n "$ping_first" ] || [ -n "$ping_second" ]
-    then
-        printf -- "Host specified either does not exist or is unreachable, please try again:\n"
-    else
         echo $hostvar >> ${pbench_run}/remotes.lis
         read -p "Another host? (y/n)" anotherhost
+        if [ $anotherhost != "y" ]
+        then
+            break
+        fi
+    else
+        printf -- "Host specified either does not exist or is unreachable, please try again:\n"
     fi
 done
 printf -- "\nDone selecting hosts:\n"
@@ -132,9 +113,7 @@ printf -- "\nNow to select tools.\n\n"
 
 # Register the specified tools, will be recorded in
 # ${pbench_run}/tools-v1-default
-anothertool=y
-while [ $anothertool == "y" ]
-do
+while :; do
     read -p "Tool name (type 'help' to see options): " tool
     if [ -z "$tool" ]
     then
@@ -145,10 +124,14 @@ do
             printf -- "\nAvailable tools:\n"
             python3 -c "import sys, json; meta = json.load(open(sys.argv[1])); print('  Transient:', *[f'\t{tool}' for tool in meta['transient'].keys()], '  Persistent:', *[f'\t{tool}' for tool in meta['persistent'].keys()], sep='\n')" /opt/pbench-agent/tool-scripts/meta.json
         else
-            printf -- "\npbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis\n"
-            pbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis
-            sleep 1
+            cmd="pbench-register-tool --name=${tool} --remotes=@${pbench_run}/remotes.lis"
+            printf -- "\n$cmd\n"
+            $cmd
             read -p "Another tool? (y/n)" anothertool
+            if [ $anothertool != "y" ]
+            then
+                break
+            fi
         fi
     fi
 done
@@ -200,7 +183,16 @@ printf -- "\n\nTypically pbench-tool-meister-start is expecting a '\${benchmark_
 
 wait_keypress 120
 
-printf -- "\n\nNow we will begin with data collection, but before doing so, feel free to run this on any tool-meister hosts:\n\n\t$ podman run docker.io/alexeiled/stress-ng --cpu 4 --io 2 --timeout 300s --metrics-brief\n\nThis will serve as a sample workload to demonstrate meaningful data collection.\nIt runs for 300s by default, but feel free to alter that value (or ctrl-c for early graceful exit).\n\n"
+cat <<-__EOF__
+
+Now we will begin with data collection, but before doing so, feel free to run this on any tool-meister hosts:
+
+    $ podman run docker.io/alexeiled/stress-ng --cpu 4 --io 2 --timeout 300s --metrics-brief
+
+This will serve as a sample workload to demonstrate meaningful data collection.
+It runs for 300s by default, but feel free to alter that value (or ctrl-c for early graceful exit).
+
+__EOF__
 
 wait_keypress 120
 
